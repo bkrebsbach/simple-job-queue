@@ -23,6 +23,7 @@ func main() {
 		port = "8080"
 	}
 
+	// setup logger
 	log := zerolog.New(os.Stdout).With().
 		Timestamp().
 		Str("service", "simple-job-queue").
@@ -61,22 +62,26 @@ func main() {
 		router.Get("/{jobID}", jobHandler.GetJobStatus)
 	})
 
+	// handle interrupt signals
 	var stop = make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)
+
+	// start server
 	var s = &http.Server{
 		Addr:    fmt.Sprintf(":%s", port),
 		Handler: router,
 	}
 
-	// start server
 	go func() {
 		if err := s.ListenAndServe(); err != nil {
 			log.Fatal().Err(err)
 		}
 	}()
 
+	// block on interrupt signal
 	<-stop
 
+	// handle shutdown
 	var ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 

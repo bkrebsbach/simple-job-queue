@@ -2,6 +2,12 @@
 
 Simple in-memory job queue with a REST API.
 
+## TODOs
+* Missing tests for handler and queue packages
+* Need to create Dockerfile and docker-compose for running the service in a container
+* Needs better observability: emit stats, handle tracing, more logging.
+* Could use some clean up in main (possibly using wire to construct dependencies)
+
 ## Local Dev
 
 ### Testing

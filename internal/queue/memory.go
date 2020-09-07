@@ -7,6 +7,9 @@ import (
 	"github.com/bkrebsbach/simple-job-queue/internal/domain"
 )
 
+// InMemoryQueue is an in-memory implementation of a job queue. Job IDs are stored
+// in a slice, and the job definitions are stored in a map with the job IDs as
+// keys. Maps are unordered, so the slice is necessary to preserve ordering.
 type InMemoryQueue struct {
 	queue []int
 	jobs  map[int]domain.Job
@@ -15,6 +18,7 @@ type InMemoryQueue struct {
 	lock sync.RWMutex
 }
 
+// NewInMemoryQueue returns an in-memory job queue.
 func NewInMemoryQueue() *InMemoryQueue {
 	queue := make([]int, 0)
 	jobs := make(map[int]domain.Job)
@@ -101,7 +105,7 @@ func (q *InMemoryQueue) Conclude(ctx context.Context, jobID int) error {
 	return nil
 }
 
-// FetchJob returns a job definition.
+// FetchJob returns a job definition for the given job ID.
 func (q *InMemoryQueue) FetchJob(ctx context.Context, jobID int) (domain.Job, error) {
 	q.lock.RLock()
 	defer q.lock.RUnlock()

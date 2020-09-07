@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog/hlog"
 )
 
+// job defines the JSON payload for a job.
 type job struct {
 	ID     int    `json:"ID"`
 	Type   string `json:"Type"`
