@@ -12,6 +12,15 @@ import (
 	"github.com/rs/zerolog/hlog"
 )
 
+const (
+	HeaderQueueConsumer = "QUEUE_CONSUMER"
+)
+
+// only the consumer that dequeued can conclude a job
+// - consumer provides identity token (QUEUE_CONSUMER header)
+// - store that with the job
+// - validate the value in the conclude step
+
 // job defines the JSON payload for a job.
 type job struct {
 	ID     int    `json:"ID"`
@@ -26,9 +35,10 @@ type enqueueResponse struct {
 // JobQueuer defines an basic interface for a job queue
 type JobQueuer interface {
 	Enqueue(ctx context.Context, job domain.Job) (int, error)
-	Dequeue(ctx context.Context) (domain.Job, error)
-	Conclude(ctx context.Context, jobID int) error
+	Dequeue(ctx context.Context, consumerID string) (domain.Job, error)
+	Conclude(ctx context.Context, jobID int, consumerID string) error
 	FetchJob(ctx context.Context, jobID int) (domain.Job, error)
+	CancelJob(ctx context.Context, jobID int) error
 }
 
 // JobHandler provides the HTTP interface for queuing, dequeuing, and retrieving
@@ -96,8 +106,16 @@ func (h *JobHandler) DequeueJob(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := hlog.FromRequest(r).With().Str("handler", "DequeueJob").Logger()
 
+	// get the consumer id from the header
+	consumerID := r.Header.Get(HeaderQueueConsumer)
+	if consumerID == "" {
+		log.Info().Msg("no valid queue consumer ID")
+		WriteErrorResponse(w, ErrInvalidInput, http.StatusBadRequest)
+		return
+	}
+
 	// dequeue a job
-	dequeuedJob, err := h.JobQueuer.Dequeue(ctx)
+	dequeuedJob, err := h.JobQueuer.Dequeue(ctx, consumerID)
 	if err != nil {
 		if errors.Is(err, domain.ErrQueueEmpty) {
 			log.Info().Err(err).Msg("no available jobs in queue")
@@ -145,8 +163,16 @@ func (h *JobHandler) ConcludeJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// get the consumer id from the header
+	consumerID := r.Header.Get(HeaderQueueConsumer)
+	if consumerID == "" {
+		log.Info().Msg("no valid queue consumer ID")
+		WriteErrorResponse(w, ErrInvalidInput, http.StatusBadRequest)
+		return
+	}
+
 	// conclude the job
-	if err := h.JobQueuer.Conclude(ctx, jobID); err != nil {
+	if err := h.JobQueuer.Conclude(ctx, jobID, consumerID); err != nil {
 		if errors.Is(err, domain.ErrJobNotFound{}) {
 			WriteErrorResponse(w, ErrNotFound, http.StatusNotFound)
 			return
@@ -206,4 +232,36 @@ func (h *JobHandler) GetJobStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	WriteJSONResponse(w, http.StatusOK, response)
+}
+
+// CancelJob cancels a job that is not yet concluded.
+func (h *JobHandler) CancelJob(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := hlog.FromRequest(r).With().Str("handler", "CancelJob").Logger()
+
+	// validate jobID param is a non-negative integer
+	paramJobID := chi.URLParam(r, "jobID")
+	jobID, err := strconv.Atoi(paramJobID)
+	if err != nil || jobID < 0 {
+		log.Info().Err(err).
+			Str("job_id", paramJobID).
+			Msg("invalid job id")
+		WriteErrorResponse(w, ErrInvalidInput, http.StatusBadRequest)
+		return
+	}
+
+	// fetch the job status
+	err = h.JobQueuer.CancelJob(ctx, jobID)
+	if err != nil {
+		if errors.Is(err, domain.ErrJobNotFound{}) {
+			WriteErrorResponse(w, ErrNotFound, http.StatusNotFound)
+			return
+		}
+
+		log.Printf("internal server error: %s", err) // TODO: use zerolog from request context
+		WriteErrorResponse(w, ErrInternalServerError, http.StatusInternalServerError)
+		return
+	}
+
+	WriteJSONResponse(w, http.StatusOK, nil)
 }

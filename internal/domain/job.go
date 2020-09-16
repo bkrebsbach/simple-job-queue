@@ -7,6 +7,7 @@ const (
 	JobStatusQueued     = "QUEUED"
 	JobStatusInProgress = "IN_PROGRESS"
 	JobStatusConcluded  = "CONCLUDED"
+	JobStatusCancelled  = "CANCELLED"
 )
 
 var (
@@ -26,7 +27,8 @@ var (
 
 // Job defines the basic job structure
 type Job struct {
-	ID     int
-	Type   string
-	Status string
+	ID         int
+	Type       string
+	Status     string
+	ConsumerID string
 }
