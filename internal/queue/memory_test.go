@@ -40,6 +40,7 @@ func TestEnqueue(t *testing.T) {
 func TestDequeue(t *testing.T) {
 	mq := NewInMemoryQueue()
 
+	consumerID := "consumer-1"
 	jobs := map[int]domain.Job{
 		1: {
 			ID:     1,
@@ -63,9 +64,61 @@ func TestDequeue(t *testing.T) {
 	mq.queue = queue
 
 	// check that jobs are dequeued successfully
-	job, err := mq.Dequeue(context.Background())
+	job, err := mq.Dequeue(context.Background(), consumerID)
 	require.Nil(t, err)
 
 	require.Equal(t, len(mq.queue), 0)
 	require.Equal(t, job, jobs[3])
+}
+
+func TestConclude(t *testing.T) {
+	mq := NewInMemoryQueue()
+
+	// set up state
+	consumerID := "consumer-1"
+	job := domain.Job{
+		Type:   domain.JobTypeTimeCritical,
+		Status: domain.JobStatusQueued,
+	}
+
+	// check that job is created successfully
+	jobID, err := mq.Enqueue(context.Background(), job)
+	require.Equal(t, jobID, 1)
+	require.Nil(t, err)
+
+	// check that jobs are dequeued successfully
+	dequeuedJob, err := mq.Dequeue(context.Background(), consumerID)
+	require.Nil(t, err)
+
+	require.Equal(t, len(mq.queue), 0)
+	// check that dequeuedJob matches enqueued job
+
+	err = mq.Conclude(context.Background(), dequeuedJob.ID, consumerID)
+	require.Nil(t, err)
+}
+
+func TestConclude_InvalidConsumer(t *testing.T) {
+	mq := NewInMemoryQueue()
+
+	// set up state
+	consumerID := "consumer-1"
+	job := domain.Job{
+		Type:   domain.JobTypeTimeCritical,
+		Status: domain.JobStatusQueued,
+	}
+
+	// check that job is created successfully
+	jobID, err := mq.Enqueue(context.Background(), job)
+	require.Equal(t, jobID, 1)
+	require.Nil(t, err)
+
+	// check that jobs are dequeued successfully
+	dequeuedJob, err := mq.Dequeue(context.Background(), consumerID)
+	require.Nil(t, err)
+
+	require.Equal(t, len(mq.queue), 0)
+	// check that dequeuedJob matches enqueued job
+
+	err = mq.Conclude(context.Background(), dequeuedJob.ID, "foo")
+	require.Error(t, err)
 }

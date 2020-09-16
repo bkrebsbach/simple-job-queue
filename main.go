@@ -59,6 +59,7 @@ func main() {
 		router.Post("/enqueue", jobHandler.EnqueueJob)
 		router.Post("/dequeue", jobHandler.DequeueJob)
 		router.Post("/{jobID}/conclude", jobHandler.ConcludeJob)
+		router.Post("/{jobID}/cancel", jobHandler.CancelJob)
 		router.Get("/{jobID}", jobHandler.GetJobStatus)
 	})
 

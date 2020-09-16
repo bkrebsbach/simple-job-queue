@@ -18,3 +18,13 @@ type ErrJobNotFound struct {
 func (e ErrJobNotFound) Error() string {
 	return fmt.Sprintf("unable to find job %d", e.JobID)
 }
+
+// ErrJobStatusTransitionNotAllowed is an error that indicates an invalid job
+// status transition
+type ErrJobStatusTransitionNotAllowed struct {
+	JobID int
+}
+
+func (e ErrJobStatusTransitionNotAllowed) Error() string {
+	return fmt.Sprintf("unable to transition job status for job %d", e.JobID)
+}

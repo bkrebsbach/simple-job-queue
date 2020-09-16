@@ -58,7 +58,7 @@ func (q *InMemoryQueue) Enqueue(ctx context.Context, job domain.Job) (int, error
 
 // Dequeue returns a job from the queue. Jobs are considered available for
 // Dequeue if the job has not been concluded and has not dequeued already.
-func (q *InMemoryQueue) Dequeue(ctx context.Context) (domain.Job, error) {
+func (q *InMemoryQueue) Dequeue(ctx context.Context, consumerID string) (domain.Job, error) {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
@@ -78,6 +78,7 @@ func (q *InMemoryQueue) Dequeue(ctx context.Context) (domain.Job, error) {
 		// and return it
 		if job.Status == domain.JobStatusQueued {
 			job.Status = domain.JobStatusInProgress
+			job.ConsumerID = consumerID
 			q.jobs[job.ID] = job
 
 			return job, nil
@@ -89,7 +90,7 @@ func (q *InMemoryQueue) Dequeue(ctx context.Context) (domain.Job, error) {
 }
 
 // Conclude finishes execution on the job.
-func (q *InMemoryQueue) Conclude(ctx context.Context, jobID int) error {
+func (q *InMemoryQueue) Conclude(ctx context.Context, jobID int, consumerID string) error {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
@@ -98,6 +99,13 @@ func (q *InMemoryQueue) Conclude(ctx context.Context, jobID int) error {
 	if !ok {
 		return domain.ErrJobNotFound{JobID: jobID}
 	}
+
+	// only the consumer that dequeued the job is allowed to conclude it
+	if job.ConsumerID != consumerID {
+		return domain.ErrJobNotFound{JobID: jobID}
+	}
+
+	// TODO: prevent cancelled jobs from being concluded
 
 	job.Status = domain.JobStatusConcluded
 	q.jobs[job.ID] = job
@@ -117,4 +125,25 @@ func (q *InMemoryQueue) FetchJob(ctx context.Context, jobID int) (domain.Job, er
 	}
 
 	return job, nil
+}
+
+// CancelJob cancels a job that has not yet been concluded.
+func (q *InMemoryQueue) CancelJob(ctx context.Context, jobID int) error {
+	q.lock.Lock()
+	defer q.lock.Unlock()
+
+	// check if the job is defined
+	job, ok := q.jobs[jobID]
+	if !ok {
+		return domain.ErrJobNotFound{JobID: jobID}
+	}
+
+	if job.Status == domain.JobStatusConcluded {
+		return domain.ErrJobStatusTransitionNotAllowed{JobID: jobID}
+	}
+
+	job.Status = domain.JobStatusCancelled
+	q.jobs[job.ID] = job
+
+	return nil
 }
