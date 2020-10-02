@@ -36,6 +36,8 @@ func (q *InMemoryQueue) Enqueue(ctx context.Context, job domain.Job) (int, error
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
+	// modify to use ID if passed in, return error if ID conflicts
+
 	// get the next available job ID
 	id := q.maxID + 1
 	_, ok := q.jobs[id]
